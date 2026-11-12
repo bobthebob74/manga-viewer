@@ -15,7 +15,10 @@ const defaultSettings = {
 
 function loadSettings() {
   try {
-    return { ...defaultSettings, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') };
+    const s = { ...defaultSettings, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') };
+    if (!['rtl', 'ltr'].includes(s.binding)) s.binding = defaultSettings.binding;
+    if (!['single', 'spread'].includes(s.layout)) s.layout = defaultSettings.layout;
+    return s;
   } catch {
     return { ...defaultSettings };
   }
@@ -106,20 +109,98 @@ function showPage(p) {
   currentPage = normalizePage(p);
   resetZoom();
   updateIndicator();
+  savePosition();
   render();
 }
 
 // ---------------------------------------------------------------
 // 描画
 // ---------------------------------------------------------------
+
+// 描き終わった画面（原寸のもの）を覚えておき、前後ページの先読みにも使う
+const VIEW_CACHE_LIMIT = 6;
+const viewCache = new Map();
+
+function viewKey(start) {
+  return [
+    start, isSpread() ? 's' : '1', settings.coverSingle ? 'c' : '', settings.binding,
+    stage.clientWidth, stage.clientHeight, window.devicePixelRatio,
+  ].join('|');
+}
+
+function cacheGet(key) {
+  const v = viewCache.get(key);
+  if (v) { viewCache.delete(key); viewCache.set(key, v); } // 最近使ったものを後ろへ
+  return v;
+}
+
+function cachePut(key, canvases) {
+  viewCache.delete(key);
+  viewCache.set(key, canvases);
+  while (viewCache.size > VIEW_CACHE_LIMIT) {
+    const oldest = viewCache.keys().next().value;
+    // 表示中でなければメモリを早めに解放
+    viewCache.get(oldest).forEach((c) => { if (!c.isConnected) { c.width = 0; c.height = 0; } });
+    viewCache.delete(oldest);
+  }
+}
+
+function clearViewCache() {
+  viewCache.forEach((cs) => cs.forEach((c) => { c.width = 0; c.height = 0; }));
+  viewCache.clear();
+}
+
+function cancelTasks() {
+  activeTasks.forEach((t) => t.cancel());
+  activeTasks = [];
+}
+
 async function render() {
   if (!pdfDoc) return;
   const seq = ++renderSeq;
+  const isStale = () => seq !== renderSeq;
   clearTimeout(hiResTimer);
-  activeTasks.forEach((t) => t.cancel());
-  activeTasks = [];
+  cancelTasks();
 
-  const pageNums = pagesInView(currentPage);
+  // 拡大中は、その倍率に合わせて高解像度で描き直す
+  const quality = zoom.s;
+  renderedQuality = quality;
+
+  let canvases = null;
+  if (quality === 1) canvases = cacheGet(viewKey(currentPage));
+  if (!canvases) {
+    canvases = await drawView(currentPage, quality, isStale);
+    if (!canvases) return;
+    if (quality === 1) cachePut(viewKey(currentPage), canvases);
+  }
+  if (isStale()) return;
+  pagesEl.replaceChildren(...canvases);
+  applyZoom();
+
+  if (quality === 1) prefetchNeighbors(isStale);
+}
+
+// 次・前の画面を裏で描いておく（次を優先）
+async function prefetchNeighbors(isStale) {
+  const view = pagesInView(currentPage);
+  const targets = [];
+  const next = view[view.length - 1] + 1;
+  if (next <= numPages) targets.push(next);
+  if (currentPage > 1) targets.push(normalizePage(currentPage - 1));
+
+  for (const start of targets) {
+    if (isStale()) return;
+    const key = viewKey(start);
+    if (viewCache.has(key)) continue;
+    const canvases = await drawView(start, 1, isStale);
+    if (!canvases || isStale()) return;
+    cachePut(key, canvases);
+  }
+}
+
+// start から始まる画面（単ページ or 見開き）を canvas に描いて返す。中断されたら null
+async function drawView(start, quality, isStale) {
+  const pageNums = pagesInView(start);
   // 右綴じの見開きは、若い番号のページを右に置く
   const ordered = settings.binding === 'rtl' ? [...pageNums].reverse() : pageNums;
 
@@ -128,9 +209,9 @@ async function render() {
     pages = await Promise.all(ordered.map((n) => pdfDoc.getPage(n)));
   } catch (e) {
     console.error(e);
-    return;
+    return null;
   }
-  if (seq !== renderSeq) return;
+  if (isStale()) return null;
 
   const baseViewports = pages.map((pg) => pg.getViewport({ scale: 1 }));
   // 見開きは高さを揃えて横に並べる
@@ -142,9 +223,6 @@ async function render() {
   const availH = stage.clientHeight;
   const fit = Math.min(availW / totalW, availH / maxH);
   const dpr = Math.min(window.devicePixelRatio || 1, 3);
-  // 拡大中は、その倍率に合わせて高解像度で描き直す
-  const quality = zoom.s;
-  renderedQuality = quality;
 
   const canvases = [];
   const tasks = pages.map((pg, i) => {
@@ -170,11 +248,10 @@ async function render() {
     await Promise.all(tasks);
   } catch (e) {
     if (e?.name !== 'RenderingCancelledException') console.error(e);
-    return;
+    return null;
   }
-  if (seq !== renderSeq) return;
-  pagesEl.replaceChildren(...canvases);
-  applyZoom();
+  if (isStale()) return null;
+  return canvases;
 }
 
 // ---------------------------------------------------------------
@@ -237,6 +314,47 @@ function updateIndicator() {
 }
 
 // ---------------------------------------------------------------
+// 読書位置（localStorage に本ごとに保存）
+// 同じ本かどうかは「ファイル名 + サイズ」で判定する
+// ---------------------------------------------------------------
+const POSITIONS_KEY = 'manga-viewer:positions';
+const POSITIONS_LIMIT = 300;
+let bookId = null;
+
+function loadPositions() {
+  try { return JSON.parse(localStorage.getItem(POSITIONS_KEY) || '{}'); } catch { return {}; }
+}
+
+function savePosition() {
+  if (!bookId) return;
+  const all = loadPositions();
+  all[bookId] = { page: currentPage, numPages, updated: Date.now() };
+  // 古いものから消して件数を抑える
+  const ids = Object.keys(all);
+  if (ids.length > POSITIONS_LIMIT) {
+    ids.sort((a, b) => all[a].updated - all[b].updated)
+      .slice(0, ids.length - POSITIONS_LIMIT)
+      .forEach((id) => delete all[id]);
+  }
+  try { localStorage.setItem(POSITIONS_KEY, JSON.stringify(all)); } catch { /* 保存できなくても続ける */ }
+}
+
+function savedPage(id) {
+  const p = loadPositions()[id]?.page;
+  return Number.isInteger(p) && p >= 1 && p <= numPages ? p : 1;
+}
+
+// 画面下に短いメッセージを出す
+let toastTimer = null;
+function showToast(text) {
+  const el = $('toast');
+  el.textContent = text;
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.hidden = true; }, 2000);
+}
+
+// ---------------------------------------------------------------
 // ファイルを開く / 閉じる
 // ---------------------------------------------------------------
 async function openFile(file) {
@@ -245,9 +363,13 @@ async function openFile(file) {
   shelf.hidden = true;
   viewer.hidden = false;
   viewer.classList.remove('menu-open');
+  renderSeq++;
+  cancelTasks();
+  clearViewCache();
   pagesEl.replaceChildren();
   loading.hidden = false;
   bookTitle.textContent = file.name.replace(/\.pdf$/i, '');
+  bookId = null;
 
   try {
     const data = await file.arrayBuffer();
@@ -255,7 +377,10 @@ async function openFile(file) {
     pdfDoc = await pdfjsLib.getDocument({ data }).promise;
     numPages = pdfDoc.numPages;
     loading.hidden = true;
-    showPage(1);
+    bookId = `${file.name}|${file.size}`;
+    const start = savedPage(bookId);
+    showPage(start);
+    if (start > 1) showToast(`前回の続き（${start}ページ）から表示しています`);
   } catch (e) {
     console.error(e);
     closeBook();
@@ -266,8 +391,9 @@ async function openFile(file) {
 
 async function closeBook() {
   renderSeq++;
-  activeTasks.forEach((t) => t.cancel());
-  activeTasks = [];
+  cancelTasks();
+  clearViewCache();
+  bookId = null;
   if (pdfDoc) {
     await pdfDoc.destroy();
     pdfDoc = null;
@@ -477,8 +603,8 @@ function syncLayoutSetting() {
 }
 
 settingsForm.addEventListener('change', () => {
-  settings.binding = settingsForm.binding.value;
-  settings.layout = settingsForm.layout.value;
+  settings.binding = settingsForm.binding.value || settings.binding;
+  settings.layout = settingsForm.layout.value || settings.layout;
   settings.coverSingle = settingsForm.coverSingle.checked;
   saveSettings();
   syncLayoutSetting();

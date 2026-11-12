@@ -83,6 +83,26 @@ html, body {
 }
 #loading[hidden] { display: none; }
 
+/* 短いお知らせ（前回の続きから表示、など） */
+#toast {
+  position: absolute;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: var(--bar-bg);
+  color: var(--fg);
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  z-index: 12;
+}
+#toast[hidden] { display: none; }
+
 .bar {
   position: absolute;
   left: 0;

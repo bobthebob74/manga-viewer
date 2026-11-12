@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>マンガビューア</title>
-  <link rel="stylesheet" href="style.css?v=6">
+  <link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
   <!-- 本棚 / ファイル選択 -->
@@ -19,13 +19,14 @@
     </label>
     <p class="hint">PCではPDFをこの画面にドラッグしても開けます</p>
     <p id="shelf-error" class="error" hidden></p>
-    <p class="version">v6</p>
+    <p class="version">v8</p>
   </section>
 
   <!-- 閲覧画面 -->
   <section id="viewer" class="screen" hidden>
     <div id="stage"><div id="pages"></div></div>
     <div id="loading" hidden>読み込み中…</div>
+    <div id="toast" hidden></div>
 
     <header id="topbar" class="bar">
       <button id="btn-close" type="button">‹ 本棚</button>
@@ -58,6 +59,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="app.js?v=6"></script>
+  <script type="module" src="app.js?v=8"></script>
 </body>
 </html>
