@@ -9,7 +9,9 @@ iPhoneではホーム画面に追加してPWAとして使う前提。
 - PDFの描画には PDF.js を使う
 - 公開先は GitHub Pages などの静的ホスティング（PWAにはHTTPSが必須）
 - 開発中の動作確認は `python3 serve.py`（キャッシュ無効の開発サーバー、ポート8001）を使い、同じWi-FiのiPhoneから開く
-- CSS / JS を変更したら `index.html` の `?v=` の番号と、本棚画面の版表示（`v6` など）を上げる
+- CSS / JS を変更したら `python3 tools/bump_version.py` で版を上げる（`index.html` の `?v=`、本棚画面の版表示、`sw.js` の VERSION をまとめて更新）
+- PDF.js は `vendor/pdfjs/` に置いている（4.10.38）。オフラインで動かすためCDNは使わない
+- Service Worker は https か localhost でしか動かない。`http://192.168.…` のiPhone確認では無効になる
 - 説明やUIの文言は日本語
 
 ## 画面構成
@@ -35,7 +37,7 @@ iPhoneではホーム画面に追加してPWAとして使う前提。
 
 | データ | 保存先 |
 |---|---|
-| PDFの原本 | クラウド（Dropbox または Google Drive。未決定） |
+| PDFの原本 | クラウド（Google Drive） |
 | ダウンロード済みのPDF本体 | IndexedDB（ユーザーが削除するまで保持） |
 | 表紙サムネイル・本の一覧 | IndexedDB |
 | 読書位置・設定 | localStorage。クラウド連携後はクラウドにJSONで同期する |
@@ -62,13 +64,15 @@ iPhoneではホーム画面に追加してPWAとして使う前提。
 - PWA化（manifest、Service Worker、ホーム画面用アイコン）
 
 ### 第3段階：クラウド本棚
-- Dropbox または Google Drive と連携する（OAuth PKCE、サーバーなし）
-  - Dropbox：App folder 権限を使う。無料プランは2GB
-  - Google Drive：無料15GB。ログイン有効期間は約1時間なので、自動で再認証する
+- **Google Drive** と連携する（OAuth、サーバーなし）。プライベートのアカウントだけでログインする
+  - 無料15GB。ログイン有効期間は約1時間なので、自動で再認証する
+  - Google のログインには HTTPS が必要なので、GitHub Pages で公開してから確認する
 - クラウド取得部分はアダプタとして分離し、あとで別サービスに差し替えられるようにする
 - 本棚にサムネイル、ダウンロード済みの印、読書の進み具合を表示する
 
 ## 未決定事項
-- クラウドサービスを Dropbox と Google Drive のどちらにするか
 - iPadの扱い（PCと同様に見開きを選べるようにする案）
-- 見開き時に表紙を単独表示するか
+- 見開き時に表紙を単独表示するか（今は設定で選べる。初期値は単独表示）
+
+## 決定事項
+- クラウドは Google Drive にする（2026-11-12）。iPhoneのファイル選択では仕事用アカウントも出てしまうため、アプリから直接プライベートのアカウントだけにつなぐ

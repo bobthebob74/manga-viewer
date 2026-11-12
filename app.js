@@ -1,7 +1,8 @@
-import * as pdfjsLib from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs';
+// PDF.js 4.10.38（オフラインでも動くようにフォルダ内に置いている）
+import * as pdfjsLib from './vendor/pdfjs/pdf.min.mjs';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
-  'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs';
+  new URL('./vendor/pdfjs/pdf.worker.min.mjs', import.meta.url).href;
 
 // ---------------------------------------------------------------
 // 設定（localStorage に保存）
@@ -624,3 +625,18 @@ function onLayoutChange() {
 }
 window.addEventListener('resize', onLayoutChange);
 wideQuery.addEventListener('change', onLayoutChange);
+
+// ---------------------------------------------------------------
+// PWA：Service Worker の登録と、保存データの固定の依頼
+// ---------------------------------------------------------------
+if ('serviceWorker' in navigator && window.isSecureContext) {
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('./sw.js').catch((e) => console.warn('Service Worker の登録に失敗', e));
+  // 新しい版に切り替わったら、本を読んでいないときだけ再読み込みする
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (hadController && !pdfDoc) location.reload();
+  });
+}
+
+// ブラウザが容量不足のときに勝手に消さないよう依頼する（読書位置などを守るため）
+navigator.storage?.persist?.().catch(() => {});
