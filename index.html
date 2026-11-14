@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/icon-180.png">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
-  <link rel="stylesheet" href="style.css?v=9">
+  <link rel="stylesheet" href="style.css?v=10">
 </head>
 <body>
   <!-- 本棚 / ファイル選択 -->
@@ -23,7 +23,15 @@
     </label>
     <p class="hint">PCではPDFをこの画面にドラッグしても開けます</p>
     <p id="shelf-error" class="error" hidden></p>
-    <p class="version">v9</p>
+
+    <div id="recent" hidden>
+      <h2>最近読んだ本</h2>
+      <ul id="recent-list"></ul>
+      <p class="hint">最近開いた5冊までを端末に保存しています</p>
+    </div>
+
+    <p id="storage-info" class="version"></p>
+    <p class="version">v10</p>
   </section>
 
   <!-- 閲覧画面 -->
@@ -63,6 +71,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="app.js?v=9"></script>
+  <script type="module" src="app.js?v=10"></script>
 </body>
 </html>

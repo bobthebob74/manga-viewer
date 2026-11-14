@@ -1,5 +1,6 @@
 // PDF.js 4.10.38（オフラインでも動くようにフォルダ内に置いている）
 import * as pdfjsLib from './vendor/pdfjs/pdf.min.mjs';
+import { getBook, listBooks, saveBook, touchBook, setThumbnail, deleteBook } from './db.js?v=10';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   new URL('./vendor/pdfjs/pdf.worker.min.mjs', import.meta.url).href;
@@ -358,8 +359,38 @@ function showToast(text) {
 // ---------------------------------------------------------------
 // ファイルを開く / 閉じる
 // ---------------------------------------------------------------
+// 端末からファイルを選んで開く。開いた本は「最近読んだ本」として端末に保存する
 async function openFile(file) {
   if (!file) return;
+  const id = `${file.name}|${file.size}`;
+  await openBook(id, file.name, async () => {
+    const data = await file.arrayBuffer();
+    // PDF.js に渡すとデータが移動して使えなくなるので、先に保存用のコピーを作る
+    const blob = new Blob([data], { type: 'application/pdf' });
+    saveBook({ id, name: file.name, size: file.size, blob })
+      .then(refreshShelf)
+      .catch((e) => console.warn('本を端末に保存できませんでした', e));
+    return data;
+  });
+}
+
+// 「最近読んだ本」から開く
+async function openRecent(id) {
+  let rec;
+  try {
+    rec = await getBook(id);
+  } catch (e) {
+    console.error(e);
+  }
+  if (!rec) {
+    refreshShelf();
+    return;
+  }
+  touchBook(id).catch(() => {});
+  await openBook(id, rec.name, () => rec.blob.arrayBuffer());
+}
+
+async function openBook(id, name, loadData) {
   shelfError.hidden = true;
   shelf.hidden = true;
   viewer.hidden = false;
@@ -369,19 +400,20 @@ async function openFile(file) {
   clearViewCache();
   pagesEl.replaceChildren();
   loading.hidden = false;
-  bookTitle.textContent = file.name.replace(/\.pdf$/i, '');
+  bookTitle.textContent = titleOf(name);
   bookId = null;
 
   try {
-    const data = await file.arrayBuffer();
+    const data = await loadData();
     if (pdfDoc) await pdfDoc.destroy();
     pdfDoc = await pdfjsLib.getDocument({ data }).promise;
     numPages = pdfDoc.numPages;
     loading.hidden = true;
-    bookId = `${file.name}|${file.size}`;
+    bookId = id;
     const start = savedPage(bookId);
     showPage(start);
     if (start > 1) showToast(`前回の続き（${start}ページ）から表示しています`);
+    makeThumbnailLater(id, pdfDoc);
   } catch (e) {
     console.error(e);
     closeBook();
@@ -405,7 +437,129 @@ async function closeBook() {
   viewer.hidden = true;
   shelf.hidden = false;
   fileInput.value = '';
+  refreshShelf();
 }
+
+const titleOf = (name) => name.replace(/\.pdf$/i, '');
+
+// 表紙（1ページ目）の小さな画像を作って保存する（まだ無いときだけ）
+function makeThumbnailLater(id, doc, tries = 4) {
+  setTimeout(async () => {
+    try {
+      if (doc !== pdfDoc) return;
+      const rec = await getBook(id);
+      // 端末への保存がまだ終わっていなければ、少し待ってやり直す
+      if (!rec) {
+        if (tries > 1) makeThumbnailLater(id, doc, tries - 1);
+        return;
+      }
+      if (rec.thumb) return;
+      const page = await doc.getPage(1);
+      const base = page.getViewport({ scale: 1 });
+      const vp = page.getViewport({ scale: 240 / base.width });
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.floor(vp.width);
+      canvas.height = Math.floor(vp.height);
+      // 画面表示用の描画が中断されたときに巻き込まれないよう、別の intent で描く
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp, intent: 'print' }).promise;
+      const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.8));
+      if (blob) {
+        await setThumbnail(id, blob);
+        refreshShelf();
+      }
+    } catch (e) {
+      if (e?.name === 'RenderingCancelledException' && tries > 1) {
+        makeThumbnailLater(id, doc, tries - 1);
+      } else {
+        console.warn('サムネイルを作れませんでした', e);
+      }
+    }
+  }, 1500);
+}
+
+// ---------------------------------------------------------------
+// 本棚：最近読んだ本
+// ---------------------------------------------------------------
+const recentSection = $('recent');
+const recentList = $('recent-list');
+const storageInfo = $('storage-info');
+let thumbUrls = [];
+
+function formatBytes(n) {
+  if (n >= 1024 ** 3) return `${(n / 1024 ** 3).toFixed(1)}GB`;
+  if (n >= 1024 ** 2) return `${Math.round(n / 1024 ** 2)}MB`;
+  return `${Math.max(1, Math.round(n / 1024))}KB`;
+}
+
+async function refreshShelf() {
+  let books = [];
+  try {
+    books = await listBooks();
+  } catch (e) {
+    console.warn('最近読んだ本を読み込めませんでした', e);
+  }
+  thumbUrls.forEach((u) => URL.revokeObjectURL(u));
+  thumbUrls = [];
+  const positions = loadPositions();
+
+  recentList.replaceChildren(...books.map((b) => {
+    const li = document.createElement('li');
+
+    const open = document.createElement('button');
+    open.type = 'button';
+    open.className = 'recent-open';
+    open.addEventListener('click', () => openRecent(b.id));
+
+    const thumb = document.createElement('div');
+    thumb.className = 'recent-thumb';
+    if (b.thumb) {
+      const url = URL.createObjectURL(b.thumb);
+      thumbUrls.push(url);
+      const img = document.createElement('img');
+      img.src = url;
+      img.alt = '';
+      thumb.append(img);
+    }
+
+    const info = document.createElement('div');
+    info.className = 'recent-info';
+    const title = document.createElement('div');
+    title.className = 'recent-title';
+    title.textContent = titleOf(b.name);
+    const meta = document.createElement('div');
+    meta.className = 'recent-meta';
+    const pos = positions[b.id];
+    meta.textContent = pos?.numPages
+      ? `${pos.page} / ${pos.numPages}ページ・${formatBytes(b.size)}`
+      : formatBytes(b.size);
+    info.append(title, meta);
+    open.append(thumb, info);
+
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'recent-delete';
+    del.textContent = '削除';
+    del.setAttribute('aria-label', `${titleOf(b.name)} を端末から削除`);
+    del.addEventListener('click', async () => {
+      if (!confirm(`「${titleOf(b.name)}」を端末から削除しますか？\n（元のPDFファイルは消えません。読書位置は残ります）`)) return;
+      await deleteBook(b.id).catch((e) => console.warn(e));
+      refreshShelf();
+    });
+
+    li.append(open, del);
+    return li;
+  }));
+  recentSection.hidden = books.length === 0;
+
+  try {
+    const est = await navigator.storage?.estimate?.();
+    storageInfo.textContent = est?.usage != null ? `端末の使用容量：${formatBytes(est.usage)}` : '';
+  } catch {
+    storageInfo.textContent = '';
+  }
+}
+
+refreshShelf();
 
 fileInput.addEventListener('change', () => openFile(fileInput.files[0]));
 
@@ -629,7 +783,12 @@ wideQuery.addEventListener('change', onLayoutChange);
 // ---------------------------------------------------------------
 // PWA：Service Worker の登録と、保存データの固定の依頼
 // ---------------------------------------------------------------
-if ('serviceWorker' in navigator && window.isSecureContext) {
+const isLocalDev = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+if ('serviceWorker' in navigator && isLocalDev) {
+  // 開発中は古いキャッシュで混乱しないよう、Service Worker を使わない
+  navigator.serviceWorker.getRegistrations().then((regs) => regs.forEach((r) => r.unregister()));
+  caches?.keys().then((keys) => keys.forEach((k) => caches.delete(k)));
+} else if ('serviceWorker' in navigator && window.isSecureContext) {
   const hadController = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.register('./sw.js').catch((e) => console.warn('Service Worker の登録に失敗', e));
   // 新しい版に切り替わったら、本を読んでいないときだけ再読み込みする

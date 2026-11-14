@@ -11,7 +11,7 @@ iPhoneではホーム画面に追加してPWAとして使う前提。
 - 開発中の動作確認は `python3 serve.py`（キャッシュ無効の開発サーバー、ポート8001）を使い、同じWi-FiのiPhoneから開く
 - CSS / JS を変更したら `python3 tools/bump_version.py` で版を上げる（`index.html` の `?v=`、本棚画面の版表示、`sw.js` の VERSION をまとめて更新）
 - PDF.js は `vendor/pdfjs/` に置いている（4.10.38）。オフラインで動かすためCDNは使わない
-- Service Worker は https か localhost でしか動かない。`http://192.168.…` のiPhone確認では無効になる
+- Service Worker は公開版（https）でだけ使う。localhost では古いキャッシュで混乱しないよう登録しない（登録済みなら解除する）。`http://192.168.…` のiPhone確認でも動かない
 - 説明やUIの文言は日本語
 
 ## 画面構成
