@@ -1,6 +1,6 @@
 // PDF.js 4.10.38（オフラインでも動くようにフォルダ内に置いている）
 import * as pdfjsLib from './vendor/pdfjs/pdf.min.mjs';
-import { getBook, listBooks, saveBook, touchBook, setThumbnail, deleteBook } from './db.js?v=10';
+import { getBook, listBooks, saveBook, touchBook, setThumbnail, deleteBook } from './db.js?v=11';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   new URL('./vendor/pdfjs/pdf.worker.min.mjs', import.meta.url).href;
@@ -440,6 +440,31 @@ async function closeBook() {
   refreshShelf();
 }
 
+// 閲覧画面から本棚へ。本はメモリに残したままにして、「‹ 戻る」ですぐ再開できるようにする
+function goToShelf() {
+  renderSeq++;
+  cancelTasks();
+  resetZoom();
+  viewer.classList.remove('menu-open');
+  viewer.hidden = true;
+  shelf.hidden = false;
+  fileInput.value = '';
+  window.scrollTo(0, 0);
+  refreshShelf();
+}
+
+// 本棚の「‹ 戻る」：直前に読んでいた本へ
+let lastRecentId = null; // メモリに本が無いとき（アプリ再起動後など）に開く本
+async function backToBook() {
+  if (pdfDoc && bookId) {
+    shelf.hidden = true;
+    viewer.hidden = false;
+    showPage(currentPage);
+  } else if (lastRecentId) {
+    await openRecent(lastRecentId);
+  }
+}
+
 const titleOf = (name) => name.replace(/\.pdf$/i, '');
 
 // 表紙（1ページ目）の小さな画像を作って保存する（まだ無いときだけ）
@@ -550,6 +575,8 @@ async function refreshShelf() {
     return li;
   }));
   recentSection.hidden = books.length === 0;
+  lastRecentId = books[0]?.id || null;
+  $('btn-back').hidden = !((pdfDoc && bookId) || lastRecentId);
 
   try {
     const est = await navigator.storage?.estimate?.();
@@ -731,7 +758,8 @@ document.addEventListener('keydown', (e) => {
 });
 
 // メニュー
-$('btn-close').addEventListener('click', closeBook);
+$('btn-close').addEventListener('click', goToShelf);
+$('btn-back').addEventListener('click', backToBook);
 $('btn-settings').addEventListener('click', openSettings);
 slider.addEventListener('input', () => {
   indicator.textContent = `${slider.value} / ${numPages}`;
@@ -774,7 +802,7 @@ function onLayoutChange() {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => {
     if (settingsDialog.open) syncLayoutSetting();
-    if (pdfDoc) showPage(currentPage);
+    if (pdfDoc && !viewer.hidden) showPage(currentPage);
   }, 150);
 }
 window.addEventListener('resize', onLayoutChange);

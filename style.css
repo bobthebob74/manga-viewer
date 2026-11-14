@@ -20,6 +20,7 @@ html, body {
 
 /* ---------- 本棚 ---------- */
 #shelf {
+  position: relative;
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -96,6 +97,21 @@ html, body {
   cursor: pointer;
 }
 #shelf h1 { font-size: 1.6rem; margin: 0 0 8px; }
+
+/* 本棚左上の「‹ 戻る」（直前に読んでいた本へ） */
+.back-button {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top));
+  left: 12px;
+  background: none;
+  border: none;
+  color: var(--fg);
+  font-size: 1rem;
+  font-weight: bold;
+  padding: 8px 6px;
+  cursor: pointer;
+}
+.back-button[hidden] { display: none; }
 #shelf.dragover { outline: 3px dashed var(--accent); outline-offset: -16px; }
 
 .open-button {
