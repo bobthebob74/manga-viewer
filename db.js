@@ -1,6 +1,7 @@
 // 端末内（IndexedDB）に本のPDFと表紙サムネイルを保存する
-//   books: { id, name, size, blob(PDF), thumb(画像Blob|null), lastOpened }
-//   id は「ファイル名|サイズ」（読書位置の記録と同じ）
+//   books: { id, name, size, blob(PDF), thumb(画像Blob|null), lastOpened, source, fileId }
+//   端末から開いた本： id は「ファイル名|サイズ」、source は 'local'。最近の RECENT_LIMIT 冊だけ残す
+//   Google Drive の本：id は「gd:ファイルID」、source は 'drive'。ユーザーが削除するまで残す
 
 const DB_NAME = 'manga-viewer';
 const DB_VERSION = 1;
@@ -53,17 +54,20 @@ export function getBook(id) {
 export async function listBooks() {
   const all = await run('readonly', (s) => s.getAll());
   return (all || [])
-    .map(({ id, name, size, thumb, lastOpened }) => ({ id, name, size, thumb, lastOpened }))
+    .map(({ id, name, size, thumb, lastOpened, source, fileId }) => ({
+      id, name, size, thumb, lastOpened, source: source || 'local', fileId,
+    }))
     .sort((a, b) => b.lastOpened - a.lastOpened);
 }
 
 // 本を保存する（既にあればサムネイルは引き継ぐ）。古い本は RECENT_LIMIT 冊を超えたら消す
-export async function saveBook({ id, name, size, blob }) {
+// lastOpened: 開いた時刻。ダウンロードだけして開いていない本は 0
+export async function saveBook({ id, name, size, blob, source = 'local', fileId = null, lastOpened = Date.now() }) {
   const old = await getBook(id);
   await run('readwrite', (s) => s.put({
-    id, name, size, blob,
+    id, name, size, blob, source, fileId,
     thumb: old?.thumb || null,
-    lastOpened: Date.now(),
+    lastOpened: Math.max(lastOpened, old?.lastOpened || 0),
   }));
   await pruneBooks();
 }
@@ -86,7 +90,8 @@ export function deleteBook(id) {
   return run('readwrite', (s) => s.delete(id));
 }
 
+// 端末から開いた本だけ、古いものを消す（Google Drive からダウンロードした本は消さない）
 async function pruneBooks() {
-  const books = await listBooks();
+  const books = (await listBooks()).filter((b) => b.source === 'local');
   for (const b of books.slice(RECENT_LIMIT)) await deleteBook(b.id);
 }

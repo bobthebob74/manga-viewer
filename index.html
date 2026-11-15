@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/icon-180.png">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
-  <link rel="stylesheet" href="style.css?v=11">
+  <link rel="stylesheet" href="style.css?v=12">
 </head>
 <body>
   <!-- 本棚 / ファイル選択 -->
@@ -25,14 +25,32 @@
     <p class="hint">PCではPDFをこの画面にドラッグしても開けます</p>
     <p id="shelf-error" class="error" hidden></p>
 
-    <div id="recent" hidden>
+    <div id="recent" class="shelf-section" hidden>
       <h2>最近読んだ本</h2>
-      <ul id="recent-list"></ul>
-      <p class="hint">最近開いた5冊までを端末に保存しています</p>
+      <ul id="recent-list" class="book-list"></ul>
+      <p class="hint">端末から開いたPDFは、最近の5冊まで端末に保存します</p>
     </div>
 
+    <div id="drive" class="shelf-section">
+      <div class="section-head">
+        <h2>Google Drive</h2>
+        <button id="drive-signout" class="link-button" type="button" hidden>ログアウト</button>
+      </div>
+      <p id="drive-status" class="hint"></p>
+      <p id="drive-error" class="error" hidden></p>
+      <button id="drive-signin" class="secondary-button" type="button" hidden></button>
+      <nav id="drive-path" class="breadcrumb" hidden></nav>
+      <ul id="drive-list" class="book-list"></ul>
+    </div>
+
+    <details id="downloaded" class="shelf-section" hidden>
+      <summary></summary>
+      <ul id="downloaded-list" class="book-list"></ul>
+      <p class="hint">Google Drive からダウンロードした本は、削除するまで端末に残ります（オフラインでも読めます）</p>
+    </details>
+
     <p id="storage-info" class="version"></p>
-    <p class="version">v11</p>
+    <p class="version">v12</p>
   </section>
 
   <!-- 閲覧画面 -->
@@ -72,6 +90,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="app.js?v=11"></script>
+  <script type="module" src="app.js?v=12"></script>
 </body>
 </html>

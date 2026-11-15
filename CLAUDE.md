@@ -69,6 +69,12 @@ iPhoneではホーム画面に追加してPWAとして使う前提。
   - Google のログインには HTTPS が必要なので、GitHub Pages で公開してから確認する
 - クラウド取得部分はアダプタとして分離し、あとで別サービスに差し替えられるようにする
 - 本棚にサムネイル、ダウンロード済みの印、読書の進み具合を表示する
+- 実装メモ（2026-11-15）
+  - `drive.js` がアダプタ。`config.js` に OAuth クライアントID（ウェブアプリ）を入れる
+  - ログインは OAuth のトークン方式で、Google の画面へ移動して戻る（ポップアップは使わない）。スコープは `drive.readonly`
+  - トークンが切れていたら、次の操作のときに Google の画面へ移動してログインし直し、戻ったら操作を続ける。`login_hint` でプライベートのアカウントを指定する
+  - Google Cloud の「承認済みの JavaScript 生成元」と「承認済みのリダイレクト URI」に、公開URL（`https://bobthebob74.github.io` と `https://bobthebob74.github.io/manga-viewer/`）と `http://localhost:8001`（`http://localhost:8001/`）を登録する
+  - ダウンロードした本は IndexedDB に `gd:ファイルID` で保存し、削除するまで残す。端末から開いたPDFは最近の5冊だけ残す
 
 ## 未決定事項
 - iPadの扱い（PCと同様に見開きを選べるようにする案）

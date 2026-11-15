@@ -1,6 +1,8 @@
 // PDF.js 4.10.38（オフラインでも動くようにフォルダ内に置いている）
 import * as pdfjsLib from './vendor/pdfjs/pdf.min.mjs';
-import { getBook, listBooks, saveBook, touchBook, setThumbnail, deleteBook } from './db.js?v=11';
+import { getBook, listBooks, saveBook, touchBook, setThumbnail, deleteBook, RECENT_LIMIT } from './db.js?v=12';
+import { GOOGLE_CLIENT_ID } from './config.js?v=12';
+import * as drive from './drive.js?v=12';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   new URL('./vendor/pdfjs/pdf.worker.min.mjs', import.meta.url).href;
@@ -503,12 +505,16 @@ function makeThumbnailLater(id, doc, tries = 4) {
 }
 
 // ---------------------------------------------------------------
-// 本棚：最近読んだ本
+// 本棚：最近読んだ本 / ダウンロード済みの本
 // ---------------------------------------------------------------
 const recentSection = $('recent');
 const recentList = $('recent-list');
+const downloadedSection = $('downloaded');
+const downloadedList = $('downloaded-list');
 const storageInfo = $('storage-info');
 let thumbUrls = [];
+let localBooks = [];               // 端末に保存している本（PDF本体なし）
+let downloadedByFileId = new Map(); // Google Drive のファイルID → 端末の本
 
 function formatBytes(n) {
   if (n >= 1024 ** 3) return `${(n / 1024 ** 3).toFixed(1)}GB`;
@@ -516,77 +522,402 @@ function formatBytes(n) {
   return `${Math.max(1, Math.round(n / 1024))}KB`;
 }
 
+function thumbUrl(blob) {
+  const url = URL.createObjectURL(blob);
+  thumbUrls.push(url);
+  return url;
+}
+
+// 本の一覧の1行（表紙・題名・情報・右端のボタン）
+function bookRow({ title, thumb, meta, metaClass = '', onOpen, action }) {
+  const li = document.createElement('li');
+  const open = document.createElement('button');
+  open.type = 'button';
+  open.className = 'recent-open';
+  open.addEventListener('click', onOpen);
+
+  const thumbBox = document.createElement('div');
+  thumbBox.className = 'recent-thumb';
+  if (thumb) {
+    const img = document.createElement('img');
+    img.src = thumb;
+    img.alt = '';
+    img.referrerPolicy = 'no-referrer';
+    img.addEventListener('error', () => img.remove());
+    thumbBox.append(img);
+  }
+
+  const info = document.createElement('div');
+  info.className = 'recent-info';
+  const t = document.createElement('div');
+  t.className = 'recent-title';
+  t.textContent = title;
+  const m = document.createElement('div');
+  m.className = `recent-meta ${metaClass}`.trim();
+  m.textContent = meta;
+  info.append(t, m);
+  open.append(thumbBox, info);
+  li.append(open);
+
+  if (action) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'recent-delete';
+    btn.textContent = action.label;
+    btn.setAttribute('aria-label', `${title} を${action.label}`);
+    btn.addEventListener('click', action.onClick);
+    li.append(btn);
+  }
+  return { li, meta: m };
+}
+
+function progressText(pos) {
+  return pos?.numPages ? `${pos.page} / ${pos.numPages}ページ` : '';
+}
+
+function savedBookRow(b, positions) {
+  const isDrive = b.source === 'drive';
+  return bookRow({
+    title: titleOf(b.name),
+    thumb: b.thumb ? thumbUrl(b.thumb) : '',
+    meta: [progressText(positions[b.id]), formatBytes(b.size)].filter(Boolean).join('・'),
+    onOpen: () => openRecent(b.id),
+    action: {
+      label: '削除',
+      onClick: async () => {
+        const note = isDrive ? 'Google Drive のファイルは消えません' : '元のPDFファイルは消えません';
+        if (!confirm(`「${titleOf(b.name)}」を端末から削除しますか？\n（${note}。読書位置は残ります）`)) return;
+        await deleteBook(b.id).catch((e) => console.warn(e));
+        refreshShelf();
+      },
+    },
+  }).li;
+}
+
 async function refreshShelf() {
-  let books = [];
   try {
-    books = await listBooks();
+    localBooks = await listBooks();
   } catch (e) {
-    console.warn('最近読んだ本を読み込めませんでした', e);
+    console.warn('端末の本を読み込めませんでした', e);
+    localBooks = [];
   }
   thumbUrls.forEach((u) => URL.revokeObjectURL(u));
   thumbUrls = [];
   const positions = loadPositions();
+  downloadedByFileId = new Map(localBooks.filter((b) => b.source === 'drive').map((b) => [b.fileId, b]));
 
-  recentList.replaceChildren(...books.map((b) => {
-    const li = document.createElement('li');
-
-    const open = document.createElement('button');
-    open.type = 'button';
-    open.className = 'recent-open';
-    open.addEventListener('click', () => openRecent(b.id));
-
-    const thumb = document.createElement('div');
-    thumb.className = 'recent-thumb';
-    if (b.thumb) {
-      const url = URL.createObjectURL(b.thumb);
-      thumbUrls.push(url);
-      const img = document.createElement('img');
-      img.src = url;
-      img.alt = '';
-      thumb.append(img);
-    }
-
-    const info = document.createElement('div');
-    info.className = 'recent-info';
-    const title = document.createElement('div');
-    title.className = 'recent-title';
-    title.textContent = titleOf(b.name);
-    const meta = document.createElement('div');
-    meta.className = 'recent-meta';
-    const pos = positions[b.id];
-    meta.textContent = pos?.numPages
-      ? `${pos.page} / ${pos.numPages}ページ・${formatBytes(b.size)}`
-      : formatBytes(b.size);
-    info.append(title, meta);
-    open.append(thumb, info);
-
-    const del = document.createElement('button');
-    del.type = 'button';
-    del.className = 'recent-delete';
-    del.textContent = '削除';
-    del.setAttribute('aria-label', `${titleOf(b.name)} を端末から削除`);
-    del.addEventListener('click', async () => {
-      if (!confirm(`「${titleOf(b.name)}」を端末から削除しますか？\n（元のPDFファイルは消えません。読書位置は残ります）`)) return;
-      await deleteBook(b.id).catch((e) => console.warn(e));
-      refreshShelf();
-    });
-
-    li.append(open, del);
-    return li;
-  }));
-  recentSection.hidden = books.length === 0;
-  lastRecentId = books[0]?.id || null;
+  // 最近読んだ本（ダウンロードしただけでまだ開いていない本は出さない）
+  const recent = localBooks.filter((b) => b.lastOpened > 0).slice(0, RECENT_LIMIT);
+  recentList.replaceChildren(...recent.map((b) => savedBookRow(b, positions)));
+  recentSection.hidden = recent.length === 0;
+  lastRecentId = recent[0]?.id || null;
   $('btn-back').hidden = !((pdfDoc && bookId) || lastRecentId);
+
+  // Google Drive からダウンロード済みの本（名前順）
+  const downloaded = [...downloadedByFileId.values()]
+    .sort((a, b) => nameCollator.compare(a.name, b.name));
+  const keepOpen = downloadedSection.open;
+  downloadedList.replaceChildren(...downloaded.map((b) => savedBookRow(b, positions)));
+  downloadedSection.querySelector('summary').textContent =
+    `ダウンロード済みの本（${downloaded.length}冊・${formatBytes(downloaded.reduce((n, b) => n + b.size, 0))}）`;
+  downloadedSection.hidden = downloaded.length === 0;
+  downloadedSection.open = keepOpen;
+
+  renderDrive();
 
   try {
     const est = await navigator.storage?.estimate?.();
-    storageInfo.textContent = est?.usage != null ? `端末の使用容量：${formatBytes(est.usage)}` : '';
+    storageInfo.textContent = est?.usage != null
+      ? `端末の使用容量：${formatBytes(est.usage)}${est.quota ? `（上限の目安 ${formatBytes(est.quota)}）` : ''}`
+      : '';
   } catch {
     storageInfo.textContent = '';
   }
 }
 
+const nameCollator = new Intl.Collator('ja', { numeric: true, sensitivity: 'base' });
+
+// ---------------------------------------------------------------
+// 本棚：Google Drive
+// ---------------------------------------------------------------
+drive.init(GOOGLE_CLIENT_ID);
+
+const DRIVE_PATH_KEY = 'manga-viewer:gdrive-path';
+const driveStatus = $('drive-status');
+const driveError = $('drive-error');
+const driveSignin = $('drive-signin');
+const driveSignout = $('drive-signout');
+const drivePathEl = $('drive-path');
+const driveList = $('drive-list');
+
+let drivePath = loadDrivePath();   // 開いているフォルダまでの道筋 [{ id, name }]
+let driveItems = null;             // 開いているフォルダの中身（未取得なら null）
+let driveLoading = false;
+const downloads = new Map();       // ダウンロード中：ファイルID → { received, total, controller, metaEl }
+let driveThumbUrls = [];
+
+function loadDrivePath() {
+  try {
+    const p = JSON.parse(localStorage.getItem(DRIVE_PATH_KEY) || 'null');
+    if (Array.isArray(p) && p.length && p.every((f) => f?.id && f?.name)) return p;
+  } catch { /* 読めなければ最初から */ }
+  return [drive.ROOT];
+}
+function saveDrivePath() {
+  try { localStorage.setItem(DRIVE_PATH_KEY, JSON.stringify(drivePath)); } catch { /* 続ける */ }
+}
+
+function showDriveError(text) {
+  driveError.textContent = text;
+  driveError.hidden = !text;
+}
+
+// ログインし直す（Google の画面へ移動し、戻ってきたら pending の操作を続ける）。
+// 直前にログインしたばかりなのに失敗した場合は、行ったり来たりしないようエラーを出して止める
+function reSignIn(pending) {
+  const last = Number(sessionStorage.getItem('manga-viewer:gdrive-last-signin') || 0);
+  if (Date.now() - last < 30_000) {
+    showDriveError('Google Drive にログインできませんでした。少し待ってからもう一度お試しください');
+    return;
+  }
+  try { sessionStorage.setItem('manga-viewer:gdrive-last-signin', String(Date.now())); } catch { /* 続ける */ }
+  drive.signIn(pending);
+}
+
+async function loadDriveFolder() {
+  if (!drive.isConfigured() || !drive.hasValidToken()) { renderDrive(); return; }
+  const folder = drivePath[drivePath.length - 1];
+  driveLoading = true;
+  driveItems = null;
+  showDriveError('');
+  renderDrive();
+  try {
+    const items = await drive.listFolder(folder.id);
+    if (folder !== drivePath[drivePath.length - 1]) return; // 途中で別のフォルダへ移った
+    driveItems = items;
+  } catch (e) {
+    if (folder !== drivePath[drivePath.length - 1]) return;
+    if (e instanceof drive.AuthError) {
+      reSignIn({ type: 'list' });
+    } else if (e instanceof TypeError) {
+      showDriveError('Google Drive につながりません（オフラインかもしれません）。ダウンロード済みの本は読めます');
+    } else if (drivePath.length > 1 && /\b404\b/.test(e.message)) {
+      drivePath = [drive.ROOT]; // 覚えていたフォルダが無くなっていた
+      saveDrivePath();
+      driveLoading = false;
+      loadDriveFolder();
+      return;
+    } else {
+      showDriveError(e.message || String(e));
+    }
+  } finally {
+    if (folder === drivePath[drivePath.length - 1]) {
+      driveLoading = false;
+      renderDrive();
+    }
+  }
+}
+
+function openDriveFolder(path) {
+  drivePath = path;
+  saveDrivePath();
+  loadDriveFolder();
+}
+
+function renderDrive() {
+  const configured = drive.isConfigured();
+  const signedIn = configured && drive.isSignedIn();
+  const tokenOk = signedIn && drive.hasValidToken();
+
+  driveSignout.hidden = !signedIn;
+  driveSignin.hidden = !configured || (tokenOk && driveItems !== null) || driveLoading;
+  driveSignin.textContent = signedIn ? 'Google Drive の本棚を表示' : 'Google Drive にログイン';
+
+  if (!configured) {
+    driveStatus.textContent = '未設定です（config.js に Google のクライアントIDを入れると使えます）';
+  } else if (!signedIn) {
+    driveStatus.textContent = 'プライベートのアカウントでログインしてください';
+  } else {
+    driveStatus.textContent = driveLoading ? `${drive.account() || 'ログイン中'}・読み込み中…` : drive.account();
+  }
+
+  // フォルダの道筋（マイドライブ › マンガ › …）
+  drivePathEl.hidden = !tokenOk;
+  drivePathEl.replaceChildren(...drivePath.flatMap((f, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = f.name;
+    b.disabled = i === drivePath.length - 1;
+    b.addEventListener('click', () => openDriveFolder(drivePath.slice(0, i + 1)));
+    if (i === 0) return [b];
+    const sep = document.createElement('span');
+    sep.textContent = '›';
+    return [sep, b];
+  }));
+
+  driveThumbUrls.forEach((u) => URL.revokeObjectURL(u));
+  driveThumbUrls = [];
+  if (!tokenOk || !driveItems) {
+    driveList.replaceChildren();
+    return;
+  }
+  const positions = loadPositions();
+  const rows = driveItems.map((item) => (item.isFolder ? folderRow(item) : drivePdfRow(item, positions)));
+  if (rows.length === 0) {
+    const li = document.createElement('li');
+    li.className = 'hint';
+    li.textContent = 'このフォルダにはPDFもフォルダもありません';
+    rows.push(li);
+  }
+  driveList.replaceChildren(...rows);
+}
+
+function folderRow(item) {
+  const li = document.createElement('li');
+  li.className = 'folder';
+  const open = document.createElement('button');
+  open.type = 'button';
+  open.className = 'recent-open';
+  const icon = document.createElement('div');
+  icon.className = 'folder-icon';
+  icon.textContent = '📁';
+  const name = document.createElement('div');
+  name.className = 'recent-title';
+  name.textContent = item.name;
+  open.append(icon, name);
+  open.addEventListener('click', () => openDriveFolder([...drivePath, { id: item.id, name: item.name }]));
+  li.append(open);
+  return li;
+}
+
+function drivePdfRow(item, positions) {
+  const saved = downloadedByFileId.get(item.id);
+  const dl = downloads.get(item.id);
+  let meta = formatBytes(item.size);
+  let metaClass = '';
+  let action;
+  if (dl) {
+    meta = downloadText(dl);
+    action = { label: '中止', onClick: () => dl.controller.abort() };
+  } else if (saved) {
+    meta = ['端末にあり', progressText(positions[saved.id]), formatBytes(saved.size)].filter(Boolean).join('・');
+    metaClass = 'downloaded';
+    action = {
+      label: '削除',
+      onClick: async () => {
+        if (!confirm(`「${titleOf(item.name)}」を端末から削除しますか？\n（Google Drive のファイルは消えません。読書位置は残ります）`)) return;
+        await deleteBook(saved.id).catch((e) => console.warn(e));
+        refreshShelf();
+      },
+    };
+  } else {
+    action = { label: 'ダウンロード', onClick: () => downloadDriveBook(item, false) };
+  }
+  const { li, meta: metaEl } = bookRow({
+    title: titleOf(item.name),
+    thumb: saved?.thumb ? driveThumbUrl(saved.thumb) : item.thumbnail,
+    meta,
+    metaClass,
+    onOpen: () => (saved ? openRecent(saved.id) : downloadDriveBook(item, true)),
+    action,
+  });
+  if (dl) dl.metaEl = metaEl;
+  return li;
+}
+
+function driveThumbUrl(blob) {
+  const url = URL.createObjectURL(blob);
+  driveThumbUrls.push(url);
+  return url;
+}
+
+function downloadText(dl) {
+  if (!dl.total) return `ダウンロード中… ${formatBytes(Math.max(dl.received, 1))}`;
+  return `ダウンロード中… ${Math.floor((dl.received / dl.total) * 100)}%（${formatBytes(dl.total)}）`;
+}
+
+// Google Drive の本を端末に保存する。openAfter なら終わったらそのまま開く
+async function downloadDriveBook(item, openAfter) {
+  if (downloads.has(item.id)) return;
+  const pending = { type: openAfter ? 'open' : 'download', item };
+  if (!drive.hasValidToken()) { reSignIn(pending); return; }
+
+  const dl = { received: 0, total: item.size, controller: new AbortController(), metaEl: null };
+  downloads.set(item.id, dl);
+  showDriveError('');
+  renderDrive();
+  try {
+    const blob = await drive.download(item.id, {
+      size: item.size,
+      signal: dl.controller.signal,
+      onProgress: (received, total) => {
+        dl.received = received;
+        dl.total = total;
+        if (dl.metaEl) dl.metaEl.textContent = downloadText(dl);
+      },
+    });
+    const id = `gd:${item.id}`;
+    await saveBook({
+      id, name: item.name, size: blob.size, blob,
+      source: 'drive', fileId: item.id, lastOpened: 0,
+    });
+    downloads.delete(item.id);
+    // 本棚を見ているときだけ開く（別の本を読み始めていたら邪魔しない）
+    if (openAfter && !shelf.hidden) await openRecent(id);
+    else refreshShelf();
+  } catch (e) {
+    downloads.delete(item.id);
+    if (e?.name === 'AbortError') {
+      // 中止した
+    } else if (e instanceof drive.AuthError) {
+      reSignIn(pending);
+    } else if (e instanceof TypeError) {
+      showDriveError(`「${titleOf(item.name)}」をダウンロードできませんでした（通信が切れたかもしれません）`);
+    } else if (e?.name === 'QuotaExceededError') {
+      showDriveError('端末の空き容量が足りません。読み終わった本を削除してください');
+    } else {
+      showDriveError(`「${titleOf(item.name)}」をダウンロードできませんでした（${e.message || e}）`);
+    }
+    renderDrive();
+  }
+}
+
+driveSignin.addEventListener('click', () => {
+  if (drive.hasValidToken()) loadDriveFolder();
+  else drive.signIn({ type: 'list' }, { chooseAccount: !drive.isSignedIn() });
+});
+driveSignout.addEventListener('click', () => {
+  if (downloads.size && !confirm('ダウンロード中の本があります。中止してログアウトしますか？')) return;
+  if (!downloads.size && !confirm('Google Drive からログアウトしますか？\n（ダウンロード済みの本は端末に残ります）')) return;
+  downloads.forEach((dl) => dl.controller.abort());
+  drive.signOut();
+  driveItems = null;
+  drivePath = [drive.ROOT];
+  saveDrivePath();
+  showDriveError('');
+  renderDrive();
+});
+
+// 起動時：Google のログイン画面から戻ってきたなら、その続きをする
+async function startDrive() {
+  let result = null;
+  try {
+    result = await drive.takeRedirectResult();
+  } catch (e) {
+    result = { ok: false, error: e.message || String(e) };
+  }
+  if (result && !result.ok) showDriveError(result.error);
+  if (drive.hasValidToken()) await loadDriveFolder();
+  else renderDrive();
+
+  const p = result?.ok ? result.pending : null;
+  if (p?.item && (p.type === 'open' || p.type === 'download')) {
+    downloadDriveBook(p.item, p.type === 'open');
+  }
+}
+
 refreshShelf();
+startDrive();
 
 fileInput.addEventListener('change', () => openFile(fileInput.files[0]));
 
