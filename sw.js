@@ -1,6 +1,6 @@
 // Service Worker：アプリ本体をキャッシュしてオフラインでも起動できるようにする
 // 版を上げるときは tools/bump_version.py を使う（この VERSION も書き換わる）
-const VERSION = 'v16';
+const VERSION = 'v17';
 const CACHE = `manga-viewer-${VERSION}`;
 
 const APP_FILES = [
