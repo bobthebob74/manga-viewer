@@ -1,6 +1,6 @@
 :root {
   --bg: #1b5596;        /* 背景（濃いめの青） */
-  --card: #3d82cc;      /* 一覧の行・設定画面 */
+  --card: #4f92d8;      /* 一覧の行・設定画面 */
   --orange: #ff8a1f;    /* 「PDFを開く」ボタン */
   --fg: #eee;
   --bar-bg: rgba(17, 60, 108, 0.94);
@@ -130,7 +130,7 @@ html, body {
   width: 52px;
   height: 74px;
   border-radius: 4px;
-  background: #4a88cc;
+  background: #6aa5e0;
   overflow: hidden;
 }
 .recent-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
