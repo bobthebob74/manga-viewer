@@ -1,8 +1,8 @@
 // PDF.js 4.10.38（オフラインでも動くようにフォルダ内に置いている）
 import * as pdfjsLib from './vendor/pdfjs/pdf.min.mjs';
-import { getBook, listBooks, saveBook, touchBook, setThumbnail, deleteBook, RECENT_LIMIT } from './db.js?v=36';
-import { GOOGLE_CLIENT_ID } from './config.js?v=36';
-import * as drive from './drive.js?v=36';
+import { getBook, listBooks, saveBook, touchBook, setThumbnail, deleteBook, RECENT_LIMIT } from './db.js?v=37';
+import { GOOGLE_CLIENT_ID } from './config.js?v=37';
+import * as drive from './drive.js?v=37';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   new URL('./vendor/pdfjs/pdf.worker.min.mjs', import.meta.url).href;
@@ -810,7 +810,12 @@ function renderDrive() {
   const tokenOk = signedIn && drive.hasValidToken();
 
   driveSignout.hidden = !signedIn;
-  driveAccount.textContent = signedIn ? drive.account() : '';
+  // アドレスの前の丸：ログイン中は緑、ログインが切れていたら灰色
+  const dot = document.createElement('span');
+  dot.className = tokenOk ? 'login-dot online' : 'login-dot';
+  dot.setAttribute('role', 'img');
+  dot.setAttribute('aria-label', tokenOk ? 'ログイン中' : 'ログイン切れ');
+  driveAccount.replaceChildren(dot, document.createTextNode(signedIn ? drive.account() : ''));
   driveAccount.hidden = !signedIn || !drive.account();
   driveSignin.hidden = !configured || (tokenOk && driveItems !== null) || driveLoading;
   driveSignin.textContent = signedIn ? 'Google Drive の本棚を表示' : 'Google Drive にログイン';
@@ -974,6 +979,16 @@ async function downloadDriveBook(item, openAfter) {
     renderDrive();
   }
 }
+
+// ログインの期限が切れたら、丸の色を灰色に変える（1分ごとに確認）
+let lastTokenOk = drive.hasValidToken();
+setInterval(() => {
+  const ok = drive.hasValidToken();
+  if (ok !== lastTokenOk) {
+    lastTokenOk = ok;
+    renderDrive();
+  }
+}, 60_000);
 
 driveSignin.addEventListener('click', () => {
   if (drive.hasValidToken()) loadDriveFolder();

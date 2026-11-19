@@ -97,6 +97,17 @@ html, body {
   white-space: nowrap;
 }
 .account-chip[hidden] { display: none; }
+.account-chip { display: flex; align-items: center; gap: 6px; }
+.account-chip[hidden] { display: none; }
+/* ログイン状態の丸（緑 = ログイン中、灰色 = ログイン切れ） */
+.login-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #9aa7b6;
+}
+.login-dot.online { background: #4cd964; box-shadow: 0 0 0 2px rgba(76, 217, 100, 0.25); }
 .account-chip a { color: inherit; text-decoration: none; }
 #drive-status:empty { display: none; }
 .secondary-button {
