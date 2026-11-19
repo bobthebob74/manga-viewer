@@ -1,8 +1,8 @@
 // PDF.js 4.10.38（オフラインでも動くようにフォルダ内に置いている）
 import * as pdfjsLib from './vendor/pdfjs/pdf.min.mjs';
-import { getBook, listBooks, saveBook, touchBook, setThumbnail, deleteBook, RECENT_LIMIT } from './db.js?v=23';
-import { GOOGLE_CLIENT_ID } from './config.js?v=23';
-import * as drive from './drive.js?v=23';
+import { getBook, listBooks, saveBook, touchBook, setThumbnail, deleteBook, RECENT_LIMIT } from './db.js?v=25';
+import { GOOGLE_CLIENT_ID } from './config.js?v=25';
+import * as drive from './drive.js?v=25';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   new URL('./vendor/pdfjs/pdf.worker.min.mjs', import.meta.url).href;
@@ -343,8 +343,21 @@ function savePosition() {
   try { localStorage.setItem(POSITIONS_KEY, JSON.stringify(all)); } catch { /* 保存できなくても続ける */ }
 }
 
-function savedPage(id) {
-  const p = loadPositions()[id]?.page;
+// 同じ本かどうかの目印（題名）。iPhone のファイル名は濁点が分かれた形（NFD）のことがあるので揃える
+const sameBookKey = (name) => titleOf(name.normalize('NFC')).trim().toLowerCase();
+
+// 前回のページ。この本の記録が無ければ、同じ題名の本（端末から開いたものと Google Drive のものなど）の記録を使う
+function positionOf(id, name, all = loadPositions()) {
+  if (all[id] || !name) return all[id];
+  const key = sameBookKey(name);
+  return localBooks
+    .filter((b) => b.id !== id && sameBookKey(b.name) === key && all[b.id])
+    .map((b) => all[b.id])
+    .sort((a, b) => b.updated - a.updated)[0];
+}
+
+function savedPage(id, name) {
+  const p = positionOf(id, name)?.page;
   return Number.isInteger(p) && p >= 1 && p <= numPages ? p : 1;
 }
 
@@ -412,7 +425,7 @@ async function openBook(id, name, loadData) {
     numPages = pdfDoc.numPages;
     loading.hidden = true;
     bookId = id;
-    const start = savedPage(bookId);
+    const start = savedPage(bookId, name);
     showPage(start);
     if (start > 1) showToast(`前回の続き（${start}ページ）から表示しています`);
     makeThumbnailLater(id, pdfDoc);
@@ -586,7 +599,7 @@ function savedBookRow(b, positions, { recent = false, makeThumbUrl = thumbUrl } 
   return bookRow({
     title: titleOf(b.name),
     thumb: b.thumb ? makeThumbUrl(b.thumb) : '',
-    meta: [progressText(positions[b.id]), formatBytes(b.size)].filter(Boolean).join('・'),
+    meta: [progressText(positionOf(b.id, b.name, positions)), formatBytes(b.size)].filter(Boolean).join('・'),
     status: 'ダウンロード済み',
     fullTitle: recent,
     onOpen: () => openRecent(b.id),
@@ -615,7 +628,17 @@ async function refreshShelf() {
   downloadedByFileId = new Map(localBooks.filter((b) => b.source === 'drive').map((b) => [b.fileId, b]));
 
   // 最近読んだ本（ダウンロードしただけでまだ開いていない本は出さない）
-  const recent = localBooks.filter((b) => b.lastOpened > 0).slice(0, RECENT_LIMIT);
+  // 同じ本が別の経路（「PDFを開く」と Google Drive など）で2つ保存されていても、新しい方の1つだけ出す
+  const seen = new Set();
+  const recent = localBooks
+    .filter((b) => {
+      if (!(b.lastOpened > 0)) return false;
+      const key = sameBookKey(b.name);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, RECENT_LIMIT);
   recentList.replaceChildren(...recent.map((b) => savedBookRow(b, positions, { recent: true })));
   recentSection.hidden = recent.length === 0;
   lastRecentId = recent[0]?.id || null;
@@ -809,7 +832,7 @@ function drivePdfRow(item, positions) {
     meta = downloadText(dl);
     action = { label: '中止', onClick: () => dl.controller.abort() };
   } else if (saved) {
-    meta = [progressText(positions[saved.id]), formatBytes(saved.size)].filter(Boolean).join('・');
+    meta = [progressText(positionOf(saved.id, saved.name, positions)), formatBytes(saved.size)].filter(Boolean).join('・');
     status = 'ダウンロード済み';
     action = {
       label: '削除',
