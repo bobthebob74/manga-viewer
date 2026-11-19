@@ -142,6 +142,9 @@ html, body {
   white-space: nowrap;
 }
 .recent-meta { color: #d3e3f5; font-size: 0.85rem; margin-top: 4px; }
+/* 「最近読んだ本」は題名を省略せず折り返して全部出す */
+.recent-title.full { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+.recent-status { color: #8dffa6; font-size: 0.85rem; font-weight: bold; margin-top: 4px; }
 .recent-delete {
   flex: none;
   background: none;

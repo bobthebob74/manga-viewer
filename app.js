@@ -1,8 +1,8 @@
 // PDF.js 4.10.38（オフラインでも動くようにフォルダ内に置いている）
 import * as pdfjsLib from './vendor/pdfjs/pdf.min.mjs';
-import { getBook, listBooks, saveBook, touchBook, setThumbnail, deleteBook, RECENT_LIMIT } from './db.js?v=19';
-import { GOOGLE_CLIENT_ID } from './config.js?v=19';
-import * as drive from './drive.js?v=19';
+import { getBook, listBooks, saveBook, touchBook, setThumbnail, deleteBook, RECENT_LIMIT } from './db.js?v=20';
+import { GOOGLE_CLIENT_ID } from './config.js?v=20';
+import * as drive from './drive.js?v=20';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   new URL('./vendor/pdfjs/pdf.worker.min.mjs', import.meta.url).href;
@@ -529,7 +529,7 @@ function thumbUrl(blob) {
 }
 
 // 本の一覧の1行（表紙・題名・情報・右端のボタン）
-function bookRow({ title, thumb, meta, metaClass = '', onOpen, action }) {
+function bookRow({ title, thumb, meta, metaClass = '', status = '', fullTitle = false, onOpen, action }) {
   const li = document.createElement('li');
   const open = document.createElement('button');
   open.type = 'button';
@@ -550,12 +550,18 @@ function bookRow({ title, thumb, meta, metaClass = '', onOpen, action }) {
   const info = document.createElement('div');
   info.className = 'recent-info';
   const t = document.createElement('div');
-  t.className = 'recent-title';
+  t.className = fullTitle ? 'recent-title full' : 'recent-title';
   t.textContent = title;
   const m = document.createElement('div');
   m.className = `recent-meta ${metaClass}`.trim();
   m.textContent = meta;
   info.append(t, m);
+  if (status) {
+    const st = document.createElement('div');
+    st.className = 'recent-status';
+    st.textContent = status;
+    info.append(st);
+  }
   open.append(thumbBox, info);
   li.append(open);
 
@@ -575,14 +581,17 @@ function progressText(pos) {
   return pos?.numPages ? `${pos.page} / ${pos.numPages}ページ` : '';
 }
 
-function savedBookRow(b, positions) {
+// recent = true：「最近読んだ本」用。題名を省略せずに表示し、削除ボタンの代わりに「ダウンロード済み」を出す
+function savedBookRow(b, positions, { recent = false } = {}) {
   const isDrive = b.source === 'drive';
   return bookRow({
     title: titleOf(b.name),
     thumb: b.thumb ? thumbUrl(b.thumb) : '',
     meta: [progressText(positions[b.id]), formatBytes(b.size)].filter(Boolean).join('・'),
+    status: recent ? 'ダウンロード済み' : '',
+    fullTitle: recent,
     onOpen: () => openRecent(b.id),
-    action: {
+    action: recent ? null : {
       label: '削除',
       onClick: async () => {
         const note = isDrive ? 'Google Drive のファイルは消えません' : '元のPDFファイルは消えません';
@@ -608,7 +617,7 @@ async function refreshShelf() {
 
   // 最近読んだ本（ダウンロードしただけでまだ開いていない本は出さない）
   const recent = localBooks.filter((b) => b.lastOpened > 0).slice(0, RECENT_LIMIT);
-  recentList.replaceChildren(...recent.map((b) => savedBookRow(b, positions)));
+  recentList.replaceChildren(...recent.map((b) => savedBookRow(b, positions, { recent: true })));
   recentSection.hidden = recent.length === 0;
   lastRecentId = recent[0]?.id || null;
   $('btn-back').hidden = !((pdfDoc && bookId) || lastRecentId);
