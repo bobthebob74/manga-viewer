@@ -1,8 +1,8 @@
 // PDF.js 4.10.38（オフラインでも動くようにフォルダ内に置いている）
 import * as pdfjsLib from './vendor/pdfjs/pdf.min.mjs';
-import { getBook, listBooks, saveBook, touchBook, setThumbnail, deleteBook, RECENT_LIMIT } from './db.js?v=22';
-import { GOOGLE_CLIENT_ID } from './config.js?v=22';
-import * as drive from './drive.js?v=22';
+import { getBook, listBooks, saveBook, touchBook, setThumbnail, deleteBook, RECENT_LIMIT } from './db.js?v=23';
+import { GOOGLE_CLIENT_ID } from './config.js?v=23';
+import * as drive from './drive.js?v=23';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   new URL('./vendor/pdfjs/pdf.worker.min.mjs', import.meta.url).href;
@@ -509,8 +509,6 @@ function makeThumbnailLater(id, doc, tries = 4) {
 // ---------------------------------------------------------------
 const recentSection = $('recent');
 const recentList = $('recent-list');
-const downloadedSection = $('downloaded');
-const downloadedList = $('downloaded-list');
 const storageInfo = $('storage-info');
 let thumbUrls = [];
 let localBooks = [];               // 端末に保存している本（PDF本体なし）
@@ -581,14 +579,15 @@ function progressText(pos) {
   return pos?.numPages ? `${pos.page} / ${pos.numPages}ページ` : '';
 }
 
-// recent = true：「最近読んだ本」用。題名を省略せずに表示し、削除ボタンの代わりに「ダウンロード済み」を出す
-function savedBookRow(b, positions, { recent = false } = {}) {
+// 端末に保存している本の1行（「ダウンロード済み」を緑で出す）
+// recent = true：「最近読んだ本」用。題名を省略せずに表示し、削除ボタンは出さない
+function savedBookRow(b, positions, { recent = false, makeThumbUrl = thumbUrl } = {}) {
   const isDrive = b.source === 'drive';
   return bookRow({
     title: titleOf(b.name),
-    thumb: b.thumb ? thumbUrl(b.thumb) : '',
+    thumb: b.thumb ? makeThumbUrl(b.thumb) : '',
     meta: [progressText(positions[b.id]), formatBytes(b.size)].filter(Boolean).join('・'),
-    status: recent ? 'ダウンロード済み' : '',
+    status: 'ダウンロード済み',
     fullTitle: recent,
     onOpen: () => openRecent(b.id),
     action: recent ? null : {
@@ -621,16 +620,6 @@ async function refreshShelf() {
   recentSection.hidden = recent.length === 0;
   lastRecentId = recent[0]?.id || null;
   $('btn-back').hidden = !((pdfDoc && bookId) || lastRecentId);
-
-  // Google Drive からダウンロード済みの本（名前順）
-  const downloaded = [...downloadedByFileId.values()]
-    .sort((a, b) => nameCollator.compare(a.name, b.name));
-  const keepOpen = downloadedSection.open;
-  downloadedList.replaceChildren(...downloaded.map((b) => savedBookRow(b, positions)));
-  downloadedSection.querySelector('summary').textContent =
-    `ダウンロード済みの本（${downloaded.length}冊・${formatBytes(downloaded.reduce((n, b) => n + b.size, 0))}）`;
-  downloadedSection.hidden = downloaded.length === 0;
-  downloadedSection.open = keepOpen;
 
   renderDrive();
 
@@ -767,7 +756,18 @@ function renderDrive() {
   driveThumbUrls.forEach((u) => URL.revokeObjectURL(u));
   driveThumbUrls = [];
   if (!tokenOk || !driveItems) {
-    driveList.replaceChildren();
+    // Drive の一覧を出せないとき（未ログイン・ログイン切れ・オフライン）は、
+    // ダウンロード済みの本を出して、そのまま読めるようにする
+    const saved = [...downloadedByFileId.values()].sort((a, b) => nameCollator.compare(a.name, b.name));
+    if (driveLoading || saved.length === 0) {
+      driveList.replaceChildren();
+      return;
+    }
+    const note = document.createElement('li');
+    note.className = 'hint list-note';
+    note.textContent = `ダウンロード済みの本（${saved.length}冊）`;
+    const positions = loadPositions();
+    driveList.replaceChildren(note, ...saved.map((b) => savedBookRow(b, positions, { makeThumbUrl: driveThumbUrl })));
     return;
   }
   const positions = loadPositions();
@@ -803,14 +803,14 @@ function drivePdfRow(item, positions) {
   const saved = downloadedByFileId.get(item.id);
   const dl = downloads.get(item.id);
   let meta = formatBytes(item.size);
-  let metaClass = '';
+  let status = '';
   let action;
   if (dl) {
     meta = downloadText(dl);
     action = { label: '中止', onClick: () => dl.controller.abort() };
   } else if (saved) {
-    meta = ['端末にあり', progressText(positions[saved.id]), formatBytes(saved.size)].filter(Boolean).join('・');
-    metaClass = 'downloaded';
+    meta = [progressText(positions[saved.id]), formatBytes(saved.size)].filter(Boolean).join('・');
+    status = 'ダウンロード済み';
     action = {
       label: '削除',
       onClick: async () => {
@@ -826,7 +826,7 @@ function drivePdfRow(item, positions) {
     title: titleOf(item.name),
     thumb: saved?.thumb ? driveThumbUrl(saved.thumb) : item.thumbnail,
     meta,
-    metaClass,
+    status,
     onOpen: () => (saved ? openRecent(saved.id) : downloadDriveBook(item, true)),
     action,
   });

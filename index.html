@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/icon-180.png">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
-  <link rel="stylesheet" href="style.css?v=22">
+  <link rel="stylesheet" href="style.css?v=23">
 </head>
 <body>
   <!-- 本棚 / ファイル選択 -->
@@ -28,7 +28,7 @@
     <div id="recent" class="shelf-section" hidden>
       <h2>最近読んだ本</h2>
       <ul id="recent-list" class="book-list"></ul>
-      <p class="hint">端末から開いたPDFは、最近の5冊まで端末に保存します</p>
+      <p class="hint">端末から開いたPDFは最近の5冊まで、Google Drive からダウンロードした本は削除するまで端末に残ります</p>
     </div>
 
     <div id="drive" class="shelf-section">
@@ -43,14 +43,8 @@
       <ul id="drive-list" class="book-list"></ul>
     </div>
 
-    <details id="downloaded" class="shelf-section" hidden>
-      <summary></summary>
-      <ul id="downloaded-list" class="book-list"></ul>
-      <p class="hint">Google Drive からダウンロードした本は、削除するまで端末に残ります（オフラインでも読めます）</p>
-    </details>
-
     <p id="storage-info" class="version"></p>
-    <p class="version">v22</p>
+    <p class="version">v23</p>
   </section>
 
   <!-- 閲覧画面 -->
@@ -90,6 +84,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="app.js?v=22"></script>
+  <script type="module" src="app.js?v=23"></script>
 </body>
 </html>

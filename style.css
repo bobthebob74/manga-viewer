@@ -42,7 +42,6 @@ html, body {
 .shelf-section h2 { font-size: 1rem; color: #fff; margin: 0 0 8px; }
 .shelf-section .hint { margin-top: 8px; }
 .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-#downloaded summary { color: #fff; font-weight: bold; cursor: pointer; padding: 4px 0 8px; }
 .book-list {
   list-style: none;
   margin: 0;
@@ -70,7 +69,7 @@ html, body {
   justify-content: center;
   font-size: 1.3rem;
 }
-.recent-meta.downloaded { color: #b6f5c0; }
+.book-list li.list-note { background: none; padding: 4px 0 0; font-weight: bold; color: #fff; }
 .link-button {
   background: none;
   border: none;
