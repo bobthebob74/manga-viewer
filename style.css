@@ -84,14 +84,14 @@ html, body {
 .small-button[hidden] { display: none; }
 .section-head { align-items: center; margin-bottom: 8px; }
 .section-head h2 { margin: 0; }
-/* ログイン中のアカウント（「PDFを開く」と同じオレンジに白い文字） */
+/* ログイン中のアカウント（四角い白窓にオレンジの文字） */
 .account-chip {
   display: inline-block;
   margin: 0 0 6px;
   padding: 4px 12px;
-  border-radius: 999px;
-  background: var(--orange);
-  color: #fff;
+  border-radius: 0;
+  background: #fff;
+  color: var(--orange);
   font-size: 0.85rem;
   font-weight: bold;
   max-width: 100%;
