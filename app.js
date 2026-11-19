@@ -1,8 +1,8 @@
 // PDF.js 4.10.38（オフラインでも動くようにフォルダ内に置いている）
 import * as pdfjsLib from './vendor/pdfjs/pdf.min.mjs';
-import { getBook, listBooks, saveBook, touchBook, setThumbnail, deleteBook, RECENT_LIMIT } from './db.js?v=20';
-import { GOOGLE_CLIENT_ID } from './config.js?v=20';
-import * as drive from './drive.js?v=20';
+import { getBook, listBooks, saveBook, touchBook, setThumbnail, deleteBook, RECENT_LIMIT } from './db.js?v=21';
+import { GOOGLE_CLIENT_ID } from './config.js?v=21';
+import * as drive from './drive.js?v=21';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   new URL('./vendor/pdfjs/pdf.worker.min.mjs', import.meta.url).href;
@@ -442,7 +442,7 @@ async function closeBook() {
   refreshShelf();
 }
 
-// 閲覧画面から本棚へ。本はメモリに残したままにして、「‹ 戻る」ですぐ再開できるようにする
+// 閲覧画面から本棚へ。本はメモリに残したままにして、「◀ 戻る」ですぐ再開できるようにする
 function goToShelf() {
   renderSeq++;
   cancelTasks();
@@ -455,7 +455,7 @@ function goToShelf() {
   refreshShelf();
 }
 
-// 本棚の「‹ 戻る」：直前に読んでいた本へ
+// 本棚の「◀ 戻る」：直前に読んでいた本へ
 let lastRecentId = null; // メモリに本が無いとき（アプリ再起動後など）に開く本
 async function backToBook() {
   if (pdfDoc && bookId) {

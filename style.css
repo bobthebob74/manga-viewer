@@ -157,7 +157,7 @@ html, body {
 }
 #shelf h1 { font-size: 1.6rem; margin: 0 0 8px; }
 
-/* 本棚左上の「‹ 戻る」（直前に読んでいた本へ） */
+/* 本棚左上の「◀ 戻る」（直前に読んでいた本へ） */
 .back-button {
   position: absolute;
   top: max(10px, env(safe-area-inset-top));

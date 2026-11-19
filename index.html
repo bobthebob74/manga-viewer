@@ -11,12 +11,12 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/icon-180.png">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
-  <link rel="stylesheet" href="style.css?v=20">
+  <link rel="stylesheet" href="style.css?v=21">
 </head>
 <body>
   <!-- 本棚 / ファイル選択 -->
   <section id="shelf" class="screen">
-    <button id="btn-back" class="back-button" type="button" hidden>‹ 戻る</button>
+    <button id="btn-back" class="back-button" type="button" hidden>◀&#xFE0E; 戻る</button>
     <h1>マンガビューア</h1>
     <label class="open-button">
       PDFを開く
@@ -50,7 +50,7 @@
     </details>
 
     <p id="storage-info" class="version"></p>
-    <p class="version">v20</p>
+    <p class="version">v21</p>
   </section>
 
   <!-- 閲覧画面 -->
@@ -60,7 +60,7 @@
     <div id="toast" hidden></div>
 
     <header id="topbar" class="bar">
-      <button id="btn-close" type="button">‹ 本棚</button>
+      <button id="btn-close" type="button">◀&#xFE0E; 本棚</button>
       <span id="book-title"></span>
       <button id="btn-settings" type="button">設定</button>
     </header>
@@ -90,6 +90,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="app.js?v=20"></script>
+  <script type="module" src="app.js?v=21"></script>
 </body>
 </html>
