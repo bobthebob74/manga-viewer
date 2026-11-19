@@ -84,14 +84,14 @@ html, body {
 .small-button[hidden] { display: none; }
 .section-head { align-items: center; margin-bottom: 8px; }
 .section-head h2 { margin: 0; }
-/* ログイン中のアカウント（白い枠に青い文字） */
+/* ログイン中のアカウント（「PDFを開く」と同じオレンジに白い文字） */
 .account-chip {
   display: inline-block;
   margin: 0 0 6px;
   padding: 4px 12px;
   border-radius: 999px;
-  background: #fff;
-  color: var(--bg);
+  background: var(--orange);
+  color: #fff;
   font-size: 0.85rem;
   font-weight: bold;
   max-width: 100%;
@@ -136,7 +136,8 @@ html, body {
   font-weight: bold;
   cursor: pointer;
 }
-.breadcrumb button:disabled { opacity: 1; cursor: default; }
+/* いま開いているフォルダはボタンではないので、枠なしの白い文字 */
+.breadcrumb button:disabled { background: none; color: #fff; padding: 4px 2px; opacity: 1; cursor: default; }
 .breadcrumb span { color: #fff; font-weight: bold; }
 .recent-open {
   flex: 1;
