@@ -352,3 +352,15 @@ dialog button[type="submit"] {
   color: #fff;
   font-size: 1rem;
 }
+
+/* 「◀ 戻る」「◀ 本棚」：「PDFを開く」と同じオレンジの丸いボタン */
+.orange-button,
+.bar button.orange-button {
+  background: var(--orange);
+  color: #fff;
+  font-weight: bold;
+  border: none;
+  border-radius: 999px;
+  padding: 5px 14px;
+  font-size: 0.9rem;
+}
