@@ -1,8 +1,8 @@
 // PDF.js 4.10.38（オフラインでも動くようにフォルダ内に置いている）
 import * as pdfjsLib from './vendor/pdfjs/pdf.min.mjs';
-import { getBook, listBooks, saveBook, touchBook, setThumbnail, deleteBook, RECENT_LIMIT } from './db.js?v=25';
-import { GOOGLE_CLIENT_ID } from './config.js?v=25';
-import * as drive from './drive.js?v=25';
+import { getBook, listBooks, saveBook, touchBook, setThumbnail, deleteBook, RECENT_LIMIT } from './db.js?v=26';
+import { GOOGLE_CLIENT_ID } from './config.js?v=26';
+import * as drive from './drive.js?v=26';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   new URL('./vendor/pdfjs/pdf.worker.min.mjs', import.meta.url).href;
@@ -343,16 +343,22 @@ function savePosition() {
   try { localStorage.setItem(POSITIONS_KEY, JSON.stringify(all)); } catch { /* 保存できなくても続ける */ }
 }
 
-// 同じ本かどうかの目印（題名）。iPhone のファイル名は濁点が分かれた形（NFD）のことがあるので揃える
-const sameBookKey = (name) => titleOf(name.normalize('NFC')).trim().toLowerCase();
+// 同じ本かどうかの目印（題名）。
+// iPhone のファイル名は濁点が分かれた形（NFD）のことがあり、全角・半角やスペースの違いもあるので、
+// NFKC で揃え、空白と区切り記号を取り除いて比べる
+const sameBookKey = (name) => titleOf(name.normalize('NFKC'))
+  .toLowerCase()
+  .replace(/[\s_\-・.　]+/g, '');
 
 // 前回のページ。この本の記録が無ければ、同じ題名の本（端末から開いたものと Google Drive のものなど）の記録を使う
+// 同じ題名の本（端末から開いたもの・Google Drive のものなど）のうち、いちばん最近読んだ位置を返す
 function positionOf(id, name, all = loadPositions()) {
-  if (all[id] || !name) return all[id];
+  if (!name) return all[id];
   const key = sameBookKey(name);
-  return localBooks
-    .filter((b) => b.id !== id && sameBookKey(b.name) === key && all[b.id])
-    .map((b) => all[b.id])
+  const ids = new Set([id, ...localBooks.filter((b) => sameBookKey(b.name) === key).map((b) => b.id)]);
+  return [...ids]
+    .map((i) => all[i])
+    .filter(Boolean)
     .sort((a, b) => b.updated - a.updated)[0];
 }
 
