@@ -1,8 +1,8 @@
 // PDF.js 4.10.38（オフラインでも動くようにフォルダ内に置いている）
 import * as pdfjsLib from './vendor/pdfjs/pdf.min.mjs';
-import { getBook, listBooks, saveBook, touchBook, setThumbnail, deleteBook, RECENT_LIMIT } from './db.js?v=28';
-import { GOOGLE_CLIENT_ID } from './config.js?v=28';
-import * as drive from './drive.js?v=28';
+import { getBook, listBooks, saveBook, touchBook, setThumbnail, deleteBook, RECENT_LIMIT } from './db.js?v=29';
+import { GOOGLE_CLIENT_ID } from './config.js?v=29';
+import * as drive from './drive.js?v=29';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   new URL('./vendor/pdfjs/pdf.worker.min.mjs', import.meta.url).href;
@@ -723,6 +723,7 @@ drive.init(GOOGLE_CLIENT_ID);
 
 const DRIVE_PATH_KEY = 'manga-viewer:gdrive-path';
 const driveStatus = $('drive-status');
+const driveAccount = $('drive-account');
 const driveError = $('drive-error');
 const driveSignin = $('drive-signin');
 const driveSignout = $('drive-signout');
@@ -809,6 +810,8 @@ function renderDrive() {
   const tokenOk = signedIn && drive.hasValidToken();
 
   driveSignout.hidden = !signedIn;
+  driveAccount.textContent = signedIn ? drive.account() : '';
+  driveAccount.hidden = !signedIn || !drive.account();
   driveSignin.hidden = !configured || (tokenOk && driveItems !== null) || driveLoading;
   driveSignin.textContent = signedIn ? 'Google Drive の本棚を表示' : 'Google Drive にログイン';
 
@@ -817,7 +820,7 @@ function renderDrive() {
   } else if (!signedIn) {
     driveStatus.textContent = 'プライベートのアカウントでログインしてください';
   } else {
-    driveStatus.textContent = driveLoading ? `${drive.account() || 'ログイン中'}・読み込み中…` : drive.account();
+    driveStatus.textContent = driveLoading ? '読み込み中…' : '';
   }
 
   // フォルダの道筋（マイドライブ › マンガ › …）

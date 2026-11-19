@@ -3,6 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <!-- メールアドレスなどを iPhone が自動でリンク（下線）にしないようにする -->
+  <meta name="format-detection" content="telephone=no, email=no, address=no, date=no">
   <meta name="theme-color" content="#1b5596">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -11,7 +13,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/icon-180.png">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
-  <link rel="stylesheet" href="style.css?v=28">
+  <link rel="stylesheet" href="style.css?v=29">
 </head>
 <body>
   <!-- 本棚 / ファイル選択 -->
@@ -34,8 +36,9 @@
     <div id="drive" class="shelf-section">
       <div class="section-head">
         <h2>Google Drive</h2>
-        <button id="drive-signout" class="link-button" type="button" hidden>ログアウト</button>
+        <button id="drive-signout" class="small-button" type="button" hidden>ログアウト</button>
       </div>
+      <p id="drive-account" class="account-chip" hidden></p>
       <p id="drive-status" class="hint"></p>
       <p id="drive-error" class="error" hidden></p>
       <button id="drive-signin" class="secondary-button" type="button" hidden></button>
@@ -44,7 +47,7 @@
     </div>
 
     <p id="storage-info" class="version"></p>
-    <p class="version">v28</p>
+    <p class="version">v29</p>
   </section>
 
   <!-- 閲覧画面 -->
@@ -84,6 +87,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="app.js?v=28"></script>
+  <script type="module" src="app.js?v=29"></script>
 </body>
 </html>
