@@ -1,8 +1,8 @@
 // PDF.js 4.10.38（オフラインでも動くようにフォルダ内に置いている）
 import * as pdfjsLib from './vendor/pdfjs/pdf.min.mjs';
-import { getBook, listBooks, saveBook, touchBook, setThumbnail, deleteBook, RECENT_LIMIT } from './db.js?v=27';
-import { GOOGLE_CLIENT_ID } from './config.js?v=27';
-import * as drive from './drive.js?v=27';
+import { getBook, listBooks, saveBook, touchBook, setThumbnail, deleteBook, RECENT_LIMIT } from './db.js?v=28';
+import { GOOGLE_CLIENT_ID } from './config.js?v=28';
+import * as drive from './drive.js?v=28';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   new URL('./vendor/pdfjs/pdf.worker.min.mjs', import.meta.url).href;
@@ -495,27 +495,35 @@ async function backToBook() {
 
 const titleOf = (name) => name.replace(/\.pdf$/i, '');
 
-// 表紙（1ページ目）の小さな画像を作って保存する（まだ無いときだけ）
-function makeThumbnailLater(id, doc, tries = 4) {
+// 表紙（1ページ目）の小さな画像（JPEG）を作る
+async function renderThumb(doc) {
+  const page = await doc.getPage(1);
+  const base = page.getViewport({ scale: 1 });
+  const vp = page.getViewport({ scale: 240 / base.width });
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.floor(vp.width);
+  canvas.height = Math.floor(vp.height);
+  // 画面表示用の描画が中断されたときに巻き込まれないよう、別の intent で描く
+  await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp, intent: 'print' }).promise;
+  const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.8));
+  canvas.width = 0;
+  canvas.height = 0;
+  return blob;
+}
+
+// 開いた本の表紙を作って保存する（まだ無いときだけ）。
+// 大きなPDFは端末への保存に時間がかかるので、保存が終わるまで最大30秒ほど待つ
+function makeThumbnailLater(id, doc, tries = 20) {
   setTimeout(async () => {
     try {
       if (doc !== pdfDoc) return;
       const rec = await getBook(id);
-      // 端末への保存がまだ終わっていなければ、少し待ってやり直す
       if (!rec) {
         if (tries > 1) makeThumbnailLater(id, doc, tries - 1);
         return;
       }
       if (rec.thumb) return;
-      const page = await doc.getPage(1);
-      const base = page.getViewport({ scale: 1 });
-      const vp = page.getViewport({ scale: 240 / base.width });
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.floor(vp.width);
-      canvas.height = Math.floor(vp.height);
-      // 画面表示用の描画が中断されたときに巻き込まれないよう、別の intent で描く
-      await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp, intent: 'print' }).promise;
-      const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.8));
+      const blob = await renderThumb(doc);
       if (blob) {
         await setThumbnail(id, blob);
         refreshShelf();
@@ -528,6 +536,41 @@ function makeThumbnailLater(id, doc, tries = 4) {
       }
     }
   }, 1500);
+}
+
+// 本棚に表紙の無い本があれば、端末に保存したPDFから作る（本棚を見ているときだけ、1冊ずつ）
+const thumbTried = new Set(); // この起動中に一度試した本（失敗しても繰り返さない）
+let fillingThumbs = false;
+async function fillMissingThumbs(books) {
+  if (fillingThumbs) return;
+  fillingThumbs = true;
+  let changed = false;
+  try {
+    for (const b of books) {
+      if (!viewer.hidden) break;
+      if (thumbOf(b) || thumbTried.has(b.id)) continue;
+      thumbTried.add(b.id);
+      try {
+        const rec = await getBook(b.id);
+        if (!rec?.blob || rec.thumb) continue;
+        const doc = await pdfjsLib.getDocument({ data: await rec.blob.arrayBuffer() }).promise;
+        try {
+          const blob = await renderThumb(doc);
+          if (blob) {
+            await setThumbnail(b.id, blob);
+            changed = true;
+          }
+        } finally {
+          await doc.destroy();
+        }
+      } catch (e) {
+        console.warn('サムネイルを作れませんでした', b.name, e);
+      }
+    }
+  } finally {
+    fillingThumbs = false;
+    if (changed) refreshShelf();
+  }
 }
 
 // ---------------------------------------------------------------
@@ -655,6 +698,8 @@ async function refreshShelf() {
   recentList.replaceChildren(...recent.map((b) => savedBookRow(b, positions, { recent: true })));
   recentSection.hidden = recent.length === 0;
   lastRecentId = recent[0]?.id || null;
+  // 表紙の無い本（最近読んだ本 → Google Drive からダウンロードした本の順）は、裏で作る
+  fillMissingThumbs([...recent, ...localBooks.filter((b) => b.source === 'drive')]);
   $('btn-back').hidden = !((pdfDoc && bookId) || lastRecentId);
 
   renderDrive();
