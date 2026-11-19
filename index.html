@@ -13,18 +13,18 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/icon-180.png">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
-  <link rel="stylesheet" href="style.css?v=35">
+  <link rel="stylesheet" href="style.css?v=36">
 </head>
 <body>
   <!-- 本棚 / ファイル選択 -->
   <section id="shelf" class="screen">
-    <button id="btn-back" class="back-button orange-button" type="button" hidden>◀&#xFE0E; 戻る</button>
+    <button id="btn-back" class="back-button small-button" type="button" hidden>◀&#xFE0E; 戻る</button>
     <h1>マンガビューア</h1>
     <label class="open-button">
       PDFを開く
       <input type="file" id="file-input" accept="application/pdf,.pdf" hidden>
     </label>
-    <p class="hint">PCではPDFをこの画面にドラッグしても開けます</p>
+    <p class="hint drag-hint">PCではPDFをこの画面にドラッグしても開けます</p>
     <p id="shelf-error" class="error" hidden></p>
 
     <div id="recent" class="shelf-section" hidden>
@@ -47,7 +47,7 @@
     </div>
 
     <p id="storage-info" class="version"></p>
-    <p class="version">v35</p>
+    <p class="version">v36</p>
   </section>
 
   <!-- 閲覧画面 -->
@@ -57,9 +57,9 @@
     <div id="toast" hidden></div>
 
     <header id="topbar" class="bar">
-      <button id="btn-close" class="orange-button" type="button">◀&#xFE0E; 本棚</button>
+      <button id="btn-close" class="small-button" type="button">◀&#xFE0E; 本棚</button>
       <span id="book-title"></span>
-      <button id="btn-settings" class="orange-button" type="button">設定</button>
+      <button id="btn-settings" class="small-button" type="button">設定</button>
     </header>
     <footer id="bottombar" class="bar">
       <input type="range" id="page-slider" min="1" max="1" value="1">
@@ -87,6 +87,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="app.js?v=35"></script>
+  <script type="module" src="app.js?v=36"></script>
 </body>
 </html>
