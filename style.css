@@ -353,7 +353,7 @@ dialog button[type="submit"] {
   font-size: 1rem;
 }
 
-/* 「◀ 戻る」「◀ 本棚」：「PDFを開く」と同じオレンジの丸いボタン */
+/* 「◀ 戻る」「◀ 本棚」「設定」：「PDFを開く」と同じオレンジの丸いボタン */
 .orange-button,
 .bar button.orange-button {
   background: var(--orange);
