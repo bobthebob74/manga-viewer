@@ -14,7 +14,7 @@
   <link rel="apple-touch-icon" href="assets/logo/apple-touch-icon-square.png">
   <link rel="icon" href="assets/logo/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="assets/logo/favicon-32.png" sizes="32x32" type="image/png">
-  <link rel="stylesheet" href="style.css?v=40">
+  <link rel="stylesheet" href="style.css?v=41">
 </head>
 <body>
   <!-- 本棚 / ファイル選択 -->
@@ -29,7 +29,10 @@
     <p id="shelf-error" class="error" hidden></p>
 
     <div id="recent" class="shelf-section" hidden>
-      <h2>最近読んだ本</h2>
+      <div class="section-head">
+        <h2>最近読んだ本</h2>
+        <button id="recent-edit" class="small-button" type="button">編集</button>
+      </div>
       <ul id="recent-list" class="book-list"></ul>
       <p class="hint">端末から開いたPDFは最近の5冊まで、Google Drive からダウンロードした本は削除するまで端末に残ります</p>
     </div>
@@ -48,7 +51,7 @@
     </div>
 
     <p id="storage-info" class="version"></p>
-    <p class="version">v40</p>
+    <p class="version">v41</p>
   </section>
 
   <!-- 閲覧画面 -->
@@ -88,6 +91,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="app.js?v=40"></script>
+  <script type="module" src="app.js?v=41"></script>
 </body>
 </html>

@@ -1,8 +1,8 @@
 // PDF.js 4.10.38（オフラインでも動くようにフォルダ内に置いている）
 import * as pdfjsLib from './vendor/pdfjs/pdf.min.mjs';
-import { getBook, listBooks, saveBook, touchBook, setThumbnail, deleteBook, RECENT_LIMIT } from './db.js?v=40';
-import { GOOGLE_CLIENT_ID } from './config.js?v=40';
-import * as drive from './drive.js?v=40';
+import { getBook, listBooks, saveBook, touchBook, setThumbnail, deleteBook, RECENT_LIMIT } from './db.js?v=41';
+import { GOOGLE_CLIENT_ID } from './config.js?v=41';
+import * as drive from './drive.js?v=41';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   new URL('./vendor/pdfjs/pdf.worker.min.mjs', import.meta.url).href;
@@ -419,6 +419,7 @@ async function openRecent(id) {
 }
 
 async function openBook(id, name, loadData) {
+  recentEditing = false; // 本を開いたら「最近読んだ本」の編集は終える
   shelfError.hidden = true;
   shelf.hidden = true;
   viewer.hidden = false;
@@ -659,17 +660,29 @@ function savedBookRow(b, positions, { recent = false, makeThumbUrl = thumbUrl } 
     status: 'ダウンロード済み',
     fullTitle: recent,
     onOpen: () => openRecent(b.id),
-    action: recent ? null : {
+    // 「最近読んだ本」では「編集」を押したときだけ削除ボタンを出す
+    action: recent && !recentEditing ? null : {
       label: '削除',
       onClick: async () => {
         const note = isDrive ? 'Google Drive のファイルは消えません' : '元のPDFファイルは消えません';
         if (!confirm(`「${titleOf(b.name)}」を端末から削除しますか？\n（${note}。読書位置は残ります）`)) return;
-        await deleteBook(b.id).catch((e) => console.warn(e));
+        // 同じ本が別の経路でも保存されていれば、それも一緒に消す（残すと一覧にまた出てくるため）
+        const key = sameBookKey(b.name);
+        const ids = recent ? localBooks.filter((o) => sameBookKey(o.name) === key).map((o) => o.id) : [b.id];
+        for (const id of ids) await deleteBook(id).catch((e) => console.warn(e));
         refreshShelf();
       },
     },
   }).li;
 }
+
+// 「最近読んだ本」の編集（削除ボタンを出す）中かどうか
+let recentEditing = false;
+const recentEdit = $('recent-edit');
+recentEdit.addEventListener('click', () => {
+  recentEditing = !recentEditing;
+  refreshShelf();
+});
 
 async function refreshShelf() {
   try {
@@ -697,6 +710,8 @@ async function refreshShelf() {
     .slice(0, RECENT_LIMIT);
   recentList.replaceChildren(...recent.map((b) => savedBookRow(b, positions, { recent: true })));
   recentSection.hidden = recent.length === 0;
+  if (recent.length === 0) recentEditing = false;
+  recentEdit.textContent = recentEditing ? '完了' : '編集';
   lastRecentId = recent[0]?.id || null;
   // 表紙の無い本（最近読んだ本 → Google Drive からダウンロードした本の順）は、裏で作る
   fillMissingThumbs([...recent, ...localBooks.filter((b) => b.source === 'drive')]);
