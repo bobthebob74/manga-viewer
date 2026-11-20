@@ -194,6 +194,10 @@ html, body {
   cursor: pointer;
 }
 #shelf h1 { font-size: 1.6rem; margin: 0 0 8px; }
+/* 本棚のいちばん上のロゴ（縦横比は変えない。スマホで高さ 64px、PCで 76px） */
+#shelf h1.logo { margin: 4px 0 6px; line-height: 0; }
+#shelf h1.logo img { display: block; height: 64px; width: auto; }
+@media (min-width: 600px) { #shelf h1.logo img { height: 76px; } }
 
 /* 本棚左上の「◀ 戻る」（直前に読んでいた本へ） */
 .back-button {

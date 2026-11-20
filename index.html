@@ -11,15 +11,16 @@
   <meta name="apple-mobile-web-app-title" content="マンガ">
   <title>マンガビューア</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="apple-touch-icon" href="icons/icon-180.png">
-  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
-  <link rel="stylesheet" href="style.css?v=38">
+  <link rel="apple-touch-icon" href="assets/logo/apple-touch-icon-square.png">
+  <link rel="icon" href="assets/logo/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="assets/logo/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="stylesheet" href="style.css?v=39">
 </head>
 <body>
   <!-- 本棚 / ファイル選択 -->
   <section id="shelf" class="screen">
     <button id="btn-back" class="back-button small-button" type="button" hidden>◀&#xFE0E; 戻る</button>
-    <h1>マンガビューア</h1>
+    <h1 class="logo"><img src="assets/logo/logo.svg" alt="Manga Viewer" width="430" height="170"></h1>
     <label class="open-button">
       PDFを開く
       <input type="file" id="file-input" accept="application/pdf,.pdf" hidden>
@@ -47,7 +48,7 @@
     </div>
 
     <p id="storage-info" class="version"></p>
-    <p class="version">v38</p>
+    <p class="version">v39</p>
   </section>
 
   <!-- 閲覧画面 -->
@@ -87,6 +88,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="app.js?v=38"></script>
+  <script type="module" src="app.js?v=39"></script>
 </body>
 </html>

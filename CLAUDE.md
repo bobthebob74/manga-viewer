@@ -13,6 +13,7 @@ iPhoneではホーム画面に追加してPWAとして使う前提。
 - PDF.js は `vendor/pdfjs/` に置いている（4.10.38）。オフラインで動かすためCDNは使わない
 - Service Worker は公開版（https）でだけ使う。localhost では古いキャッシュで混乱しないよう登録しない（登録済みなら解除する）。`http://192.168.…` のiPhone確認でも動かない
 - 説明やUIの文言は日本語
+- ロゴ・アイコンは `assets/logo/`（仕様は同フォルダの README.md）。iPhone のホーム画面用と maskable 用は、角が透明なアイコンから `python3 tools/fill_icon_corners.py` で四角いものを作っている
 
 ## 画面構成
 

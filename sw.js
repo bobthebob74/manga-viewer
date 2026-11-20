@@ -1,6 +1,6 @@
 // Service Worker：アプリ本体をキャッシュしてオフラインでも起動できるようにする
 // 版を上げるときは tools/bump_version.py を使う（この VERSION も書き換わる）
-const VERSION = 'v38';
+const VERSION = 'v39';
 const CACHE = `manga-viewer-${VERSION}`;
 
 const APP_FILES = [
@@ -14,9 +14,12 @@ const APP_FILES = [
   './manifest.webmanifest',
   './vendor/pdfjs/pdf.min.mjs',
   './vendor/pdfjs/pdf.worker.min.mjs',
-  './icons/icon-180.png',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
+  './assets/logo/logo.svg',
+  './assets/logo/favicon.svg',
+  './assets/logo/favicon-32.png',
+  './assets/logo/apple-touch-icon-square.png',
+  './assets/logo/icon-192.png',
+  './assets/logo/icon-512.png',
 ];
 
 self.addEventListener('install', (event) => {
