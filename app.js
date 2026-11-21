@@ -1,8 +1,8 @@
 // PDF.js 4.10.38（オフラインでも動くようにフォルダ内に置いている）
 import * as pdfjsLib from './vendor/pdfjs/pdf.min.mjs';
-import { getBook, listBooks, saveBook, touchBook, setThumbnail, deleteBook, RECENT_LIMIT } from './db.js?v=41';
-import { GOOGLE_CLIENT_ID } from './config.js?v=41';
-import * as drive from './drive.js?v=41';
+import { getBook, listBooks, saveBook, touchBook, setThumbnail, deleteBook, RECENT_LIMIT } from './db.js?v=42';
+import { GOOGLE_CLIENT_ID } from './config.js?v=42';
+import * as drive from './drive.js?v=42';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   new URL('./vendor/pdfjs/pdf.worker.min.mjs', import.meta.url).href;
@@ -722,7 +722,7 @@ async function refreshShelf() {
   try {
     const est = await navigator.storage?.estimate?.();
     storageInfo.textContent = est?.usage != null
-      ? `端末の使用容量：${formatBytes(est.usage)}${est.quota ? `（上限の目安 ${formatBytes(est.quota)}）` : ''}`
+      ? `端末の使用容量：${formatBytes(est.usage)}`
       : '';
   } catch {
     storageInfo.textContent = '';
